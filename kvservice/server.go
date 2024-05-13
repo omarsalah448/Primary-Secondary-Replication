@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/rpc"
 	"os"
+	"strconv"
 	"sync"
 	"syscall"
 	"time"
@@ -34,15 +35,64 @@ type KVServer struct {
 	finish      chan interface{}
 
 	// Add your declarations here.
+	isPrimary bool
+	kvDB      map[string]string
 }
 
 func (server *KVServer) Put(args *PutArgs, reply *PutReply) error {
 	// Your code here.
+	// if primary is updating the backup
+	if args.FromPrimary {
+		server.kvDB[args.Key] = args.Value
+		reply.Err = OK
+		// if request is sent to primary
+	} else if server.isPrimary {
+		reply.PreviousValue = server.kvDB[args.Key]
+		server.kvDB[args.Key] = args.Value
+		if args.DoHash {
+			h := hash(reply.PreviousValue + args.Value)
+			server.kvDB[args.Key] = strconv.Itoa(int(h))
+		}
+		if server.view.Backup != "" {
+			// RPC arguments
+			putArgs := &PutArgs{}
+			putArgs.Key = args.Key
+			putArgs.Value = args.Value
+			putArgs.FromPrimary = true
+			var putReply PutReply
+			// keep going until both the RPC call is correct and the reply is ok
+			valueFetched := false
+			for putReply.Err != OK {
+				// update the value for the backup
+				valueFetched = call(server.view.Backup, "KVServer.Put", putArgs, &putReply)
+				fmt.Println(server.view.Backup, valueFetched)
+			}
+		}
+		// value replicated successfuly
+		reply.Err = OK
+		// ignore the other cases
+	} else {
+		reply.Err = ErrWrongServer
+		fmt.Println("wrrrrrrrrrrrrong server")
+	}
 	return nil
 }
 
 func (server *KVServer) Get(args *GetArgs, reply *GetReply) error {
 	// Your code here.
+	if server.isPrimary {
+		reply.Value = server.kvDB[args.Key]
+		reply.Err = OK
+	} else {
+		reply.Err = ErrWrongServer
+	}
+	return nil
+}
+
+func (server *KVServer) Update(args *UpdateArgs, reply *UpdateReply) error {
+	server.kvDB = args.KVDB
+	reply.Err = OK
+	fmt.Println("inside update", server.isPrimary)
 	return nil
 }
 
@@ -53,7 +103,28 @@ func (server *KVServer) tick() {
 	view, err := server.monitorClnt.Ping(server.view.Viewnum)
 
 	// Your code here.
+	// handle error
+	if err != nil {
+		fmt.Println("exit with error")
+		return
+	}
+	// if primary, it can handle the client's requests
+	// fmt.Println("server.id:", server.id, "server.view.Primary:", server.view.Primary, "view.Primary:", view.Primary)
+	if server.id == view.Primary {
+		// fmt.Println("it's read")
+		server.isPrimary = true
+	}
+	// if a new backup is detected, then give it an updated version of the DB
+	if server.view.Backup != view.Backup && view.Backup != "" {
+		fmt.Println("this is a huge deal !!!")
+		// RPC arguments
+		args := &UpdateArgs{}
+		args.KVDB = server.kvDB
+		var reply UpdateReply
 
+		call(view.Backup, "KVServer.Update", args, &reply)
+	}
+	server.view = view
 }
 
 // tell the server to shut itself down.
@@ -72,7 +143,8 @@ func StartKVServer(monitorServer string, id string) *KVServer {
 
 	// Add your server initializations here
 	// ==================================
-
+	server.isPrimary = false
+	server.kvDB = make(map[string]string)
 	//====================================
 
 	rpcs := rpc.NewServer()

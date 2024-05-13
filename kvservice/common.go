@@ -19,7 +19,7 @@ type PutArgs struct {
 	Value  string
 	DoHash bool // For PutHash
 	// You'll have to add definitions here.
-
+	FromPrimary bool
 	// Field names should start with capital letters for RPC to work.
 }
 
@@ -31,6 +31,7 @@ type PutReply struct {
 type GetArgs struct {
 	Key string
 	// You'll have to add definitions here.
+	FromPrimary bool
 }
 
 type GetReply struct {
@@ -39,7 +40,15 @@ type GetReply struct {
 }
 
 // Add your RPC definitions here.
-//======================================
+// ======================================
+// these two structs are used to send an RPC call to update the kvDB
+type UpdateArgs struct {
+	KVDB map[string]string
+}
+
+type UpdateReply struct {
+	Err Err
+}
 
 // ======================================
 

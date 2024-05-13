@@ -4,6 +4,7 @@ import (
 	"asg4/sysmonitor"
 	"fmt"
 	"net/rpc"
+	"strconv"
 )
 
 // import "time"
@@ -26,7 +27,7 @@ func MakeKVClient(monitorServer string) *KVClient {
 
 	// ToDo: Generate a random id for the client.
 	// ==================================
-
+	client.id = strconv.FormatInt(nrand(), 10)
 	//====================================
 
 	return client
@@ -74,18 +75,47 @@ func (client *KVClient) updateView() {
 // If the key was never set, "" is expected.
 // This must keep trying until it gets a response.
 func (client *KVClient) Get(key string) string {
-
 	// Your code here.
-	return "??"
+	// RPC arguments
+	args := &GetArgs{}
+	args.Key = key
+	var reply GetReply
+	valueFetched := ""
+	for valueFetched == "" {
+		view := client.view
+		ok := call(view.Primary, "KVServer.Get", args, &reply)
+		if !ok {
+			client.updateView()
+		}
+		valueFetched = reply.Value
+	}
+	return reply.Value
 }
 
 // This should tell the primary to update key's value via an RPC call.
 // must keep trying until it succeeds.
 // You can get the primary from the client's current view.
 func (client *KVClient) PutAux(key string, value string, dohash bool) string {
-
 	// Your code here.
-	return "??"
+	// RPC arguments
+	args := &PutArgs{}
+	args.Key = key
+	args.Value = value
+	args.DoHash = dohash
+	var reply PutReply
+	//valueFetched := false
+	for reply.Err != OK {
+		view := client.view
+		ok := call(view.Primary, "KVServer.Put", args, &reply)
+		if !ok {
+			client.updateView()
+		}
+		fmt.Println("error", reply.Err)
+	}
+	//h := hash(reply.PreviousValue + value)
+	//return strconv.Itoa(int(h))
+	//return ""
+	return reply.PreviousValue
 }
 
 // Both put and puthash rely on the auxiliary method PutAux. No modifications needed below.

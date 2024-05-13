@@ -35,6 +35,7 @@ func port(tag string, host int) string {
 var count int = 0
 
 func TestBasicFail(t *testing.T) {
+	fmt.Println("b esm allah")
 	runtime.GOMAXPROCS(4)
 
 	tag := "basic"
@@ -148,6 +149,7 @@ func TestBasicFail(t *testing.T) {
 }
 
 func TestAtMostOnce(t *testing.T) {
+	fmt.Println("b esm allah")
 	runtime.GOMAXPROCS(4)
 
 	tag := "csu"
@@ -185,6 +187,8 @@ func TestAtMostOnce(t *testing.T) {
 		pv := ck.PutHash(k, v)
 		if pv != val {
 			t.Fatalf("ck.Puthash() returned %v but expected %v\n", pv, val)
+		} else {
+			fmt.Println("passed once")
 		}
 		h := hash(val + v)
 		val = strconv.Itoa(int(h))

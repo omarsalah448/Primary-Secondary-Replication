@@ -13,7 +13,7 @@ import (
 func check(client *kvservice.KVClient, key string, value string) {
 	v := client.Get(key)
 	if v != value {
-		fmt.Println("Error: Get(%v) -> %v, expected %v", key, v, value)
+		fmt.Printf("Error: Get(%v) -> %v, expected %v\n", key, v, value)
 		os.Exit(-1)
 	}
 }
@@ -46,6 +46,7 @@ func main() {
 	time.Sleep(deadtime * 2)
 
 	client.Put("111", "v1")
+	//
 	check(client, "111", "v1")
 
 	client.Put("2", "v2")
