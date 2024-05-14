@@ -90,7 +90,9 @@ func (client *KVClient) Get(key string) string {
 	for reply.Err != OK {
 		view := client.view
 		ok := call(view.Primary, "KVServer.Get", args, &reply)
-		if !ok {
+		// if RPC call fails, or server doesn't recognize himself as
+		// primary then try again
+		if !ok || reply.Err == ErrWrongServer {
 			time.Sleep(sysmonitor.PingInterval)
 			client.updateView()
 		}
@@ -115,7 +117,9 @@ func (client *KVClient) PutAux(key string, value string, dohash bool) string {
 	for reply.Err != OK {
 		view := client.view
 		ok := call(view.Primary, "KVServer.Put", args, &reply)
-		if !ok {
+		// if RPC call fails, or server doesn't recognize himself as
+		// primary then try again
+		if !ok || reply.Err == ErrWrongServer {
 			time.Sleep(sysmonitor.PingInterval)
 			client.updateView()
 		}

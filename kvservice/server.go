@@ -1,6 +1,5 @@
 package kvservice
 
-// okoko
 import (
 	"asg4/sysmonitor"
 	"fmt"
@@ -63,13 +62,13 @@ func (server *KVServer) Put(args *PutArgs, reply *PutReply) error {
 	// fmt.Println("inside put")
 	// Your code here.
 	if server.isPrimary {
-		atomicLock.Lock()
+		// atomicLock.Lock()
 		server.mutex.Lock()
 		// filter duplicate requests
 		if server.putClientRequests[args.RequestId].Err == OK {
 			*reply = server.putClientRequests[args.RequestId]
 			server.mutex.Unlock()
-			atomicLock.Unlock()
+			// atomicLock.Unlock()
 			return nil
 		}
 		server.mutex.Unlock()
@@ -88,7 +87,7 @@ func (server *KVServer) Put(args *PutArgs, reply *PutReply) error {
 				ok := call(server.view.Backup, "KVServer.PutBackup", putArgs, &putReply)
 				// if RPC call failed, try again later
 				if !ok {
-					atomicLock.Unlock()
+					// atomicLock.Unlock()
 					return nil
 				}
 			}
@@ -96,9 +95,10 @@ func (server *KVServer) Put(args *PutArgs, reply *PutReply) error {
 		server.mutex.Lock()
 		server.updatePutHash(args, reply)
 		server.mutex.Unlock()
-		atomicLock.Unlock()
+		// atomicLock.Unlock()
 		// ignore the other cases
 	} else {
+		fmt.Println("worng server !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!1")
 		reply.Err = ErrWrongServer
 	}
 	return nil
@@ -121,13 +121,13 @@ func (server *KVServer) GetBackup(args *GetArgs, reply *GetReply) error {
 func (server *KVServer) Get(args *GetArgs, reply *GetReply) error {
 	// Your code here.
 	if server.isPrimary {
-		atomicLock.Lock()
+		// atomicLock.Lock()
 		server.mutex.Lock()
 		// filter duplicate requests
 		if server.getClientRequests[args.RequestId].Err == OK {
 			*reply = server.getClientRequests[args.RequestId]
 			server.mutex.Unlock()
-			atomicLock.Unlock()
+			// atomicLock.Unlock()
 			return nil
 		}
 		server.mutex.Unlock()
@@ -144,7 +144,7 @@ func (server *KVServer) Get(args *GetArgs, reply *GetReply) error {
 				ok := call(server.view.Backup, "KVServer.GetBackup", getArgs, &getReply)
 				// if RPC call failed, try again later
 				if !ok {
-					atomicLock.Unlock()
+					// atomicLock.Unlock()
 					return nil
 				}
 			}
@@ -152,8 +152,9 @@ func (server *KVServer) Get(args *GetArgs, reply *GetReply) error {
 		server.mutex.Lock()
 		server.updateGet(args, reply)
 		server.mutex.Unlock()
-		atomicLock.Unlock()
+		// atomicLock.Unlock()
 	} else {
+		fmt.Println("worng server !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!1")
 		reply.Err = ErrWrongServer
 	}
 	return nil
