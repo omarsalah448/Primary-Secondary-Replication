@@ -50,6 +50,7 @@ func (server *KVServer) Put(args *PutArgs, reply *PutReply) error {
 	// filter duplicate requests
 	if server.putClientRequests[args.RequestId].Err == OK {
 		*reply = server.putClientRequests[args.RequestId]
+		server.mutex.RUnlock()
 		return nil
 	}
 	server.mutex.RUnlock()
@@ -95,10 +96,8 @@ func (server *KVServer) Put(args *PutArgs, reply *PutReply) error {
 			h := hash(reply.PreviousValue + args.Value)
 			server.kvDB[args.Key] = strconv.Itoa(int(h))
 		}
-		server.mutex.Unlock()
 		// value replicated successfuly
 		reply.Err = OK
-		server.mutex.Lock()
 		// prevent any more requests
 		server.putClientRequests[args.RequestId] = *reply
 		// fmt.Println("request succesful for", args.RequestId, reply)
@@ -118,6 +117,7 @@ func (server *KVServer) Get(args *GetArgs, reply *GetReply) error {
 	server.mutex.RLock()
 	if server.getClientRequests[args.RequestId].Err == OK {
 		*reply = server.getClientRequests[args.RequestId]
+		server.mutex.RUnlock()
 		return nil
 	}
 	server.mutex.RUnlock()
@@ -136,11 +136,11 @@ func (server *KVServer) Get(args *GetArgs, reply *GetReply) error {
 }
 
 func (server *KVServer) Update(args *UpdateArgs, reply *UpdateReply) error {
+	server.mutex.Lock()
 	server.kvDB = args.KVDB
-	server.mutex.RLock()
 	server.getClientRequests = args.GetClientRequests
 	server.putClientRequests = args.PutClientRequests
-	server.mutex.RUnlock()
+	server.mutex.Unlock()
 	reply.Err = OK
 	return nil
 }
@@ -165,8 +165,8 @@ func (server *KVServer) tick() {
 	if server.view.Backup != view.Backup && view.Backup != "" {
 		// RPC UPDATE arguments
 		args := &UpdateArgs{}
-		args.KVDB = server.kvDB
 		server.mutex.RLock()
+		args.KVDB = server.kvDB
 		args.GetClientRequests = server.getClientRequests
 		args.PutClientRequests = server.putClientRequests
 		server.mutex.RUnlock()

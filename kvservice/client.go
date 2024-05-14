@@ -77,6 +77,8 @@ func (client *KVClient) updateView() {
 // This must keep trying until it gets a response.
 func (client *KVClient) Get(key string) string {
 	// Your code here.
+	// mutex.Lock()
+	// defer mutex.Unlock()
 	// RPC arguments
 	args := &GetArgs{}
 	args.Key = key
@@ -93,11 +95,15 @@ func (client *KVClient) Get(key string) string {
 	return reply.Value
 }
 
+// var mutex = sync.Mutex{}
+
 // This should tell the primary to update key's value via an RPC call.
 // must keep trying until it succeeds.
 // You can get the primary from the client's current view.
 func (client *KVClient) PutAux(key string, value string, dohash bool) string {
 	// Your code here.
+	// mutex.Lock()
+	// defer mutex.Unlock()
 	// RPC arguments
 	args := &PutArgs{}
 	args.Key = key
