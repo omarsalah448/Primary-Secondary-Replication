@@ -35,16 +35,29 @@ type KVServer struct {
 	finish      chan interface{}
 
 	// Add your declarations here.
-	isPrimary bool
-	kvDB      map[string]string
+	isPrimary         bool
+	kvDB              map[string]string
+	getClientRequests map[string]GetReply
+	putClientRequests map[string]PutReply
 }
 
 func (server *KVServer) Put(args *PutArgs, reply *PutReply) error {
 	// Your code here.
+	// filter duplicate requests
+	if server.putClientRequests[args.ClientId].Err == OK {
+		*reply = server.putClientRequests[args.ClientId]
+		return nil
+	}
 	// if primary is updating the backup
 	if args.FromPrimary {
+		reply.PreviousValue = server.kvDB[args.Key]
 		server.kvDB[args.Key] = args.Value
+		if args.DoHash {
+			h := hash(reply.PreviousValue + args.Value)
+			server.kvDB[args.Key] = strconv.Itoa(int(h))
+		}
 		reply.Err = OK
+		server.putClientRequests[args.ClientId] = *reply
 		// if request is sent to primary
 	} else if server.isPrimary {
 		reply.PreviousValue = server.kvDB[args.Key]
@@ -54,45 +67,62 @@ func (server *KVServer) Put(args *PutArgs, reply *PutReply) error {
 			server.kvDB[args.Key] = strconv.Itoa(int(h))
 		}
 		if server.view.Backup != "" {
-			// RPC arguments
+			// RPC PUT arguments
 			putArgs := &PutArgs{}
 			putArgs.Key = args.Key
 			putArgs.Value = args.Value
+			putArgs.DoHash = args.DoHash
 			putArgs.FromPrimary = true
+			putArgs.ClientId = args.ClientId
 			var putReply PutReply
-			// keep going until both the RPC call is correct and the reply is ok
-			valueFetched := false
+			// keep going until the reply is ok
 			for putReply.Err != OK {
 				// update the value for the backup
-				valueFetched = call(server.view.Backup, "KVServer.Put", putArgs, &putReply)
-				fmt.Println(server.view.Backup, valueFetched)
+				ok := call(server.view.Backup, "KVServer.Put", putArgs, &putReply)
+				// if RPC call failed, try again later
+				if !ok {
+					return nil
+				}
 			}
 		}
 		// value replicated successfuly
 		reply.Err = OK
+		// prevent any more requests
+		server.putClientRequests[args.ClientId] = *reply
+		fmt.Println("request succesful for", args.ClientId, reply)
 		// ignore the other cases
 	} else {
 		reply.Err = ErrWrongServer
-		fmt.Println("wrrrrrrrrrrrrong server")
 	}
+
 	return nil
 }
 
 func (server *KVServer) Get(args *GetArgs, reply *GetReply) error {
 	// Your code here.
+	// filter duplicate requests
+	if server.getClientRequests[args.ClientId].Err == OK {
+		*reply = server.getClientRequests[args.ClientId]
+		return nil
+	}
 	if server.isPrimary {
 		reply.Value = server.kvDB[args.Key]
 		reply.Err = OK
+		// prevent any more requests
+		server.getClientRequests[args.ClientId] = *reply
 	} else {
 		reply.Err = ErrWrongServer
 	}
+
 	return nil
 }
 
 func (server *KVServer) Update(args *UpdateArgs, reply *UpdateReply) error {
 	server.kvDB = args.KVDB
+	server.getClientRequests = args.GetClientRequests
+	server.putClientRequests = args.PutClientRequests
+	//fmt.Println(server.id, "initialized")
 	reply.Err = OK
-	fmt.Println("inside update", server.isPrimary)
 	return nil
 }
 
@@ -109,17 +139,16 @@ func (server *KVServer) tick() {
 		return
 	}
 	// if primary, it can handle the client's requests
-	// fmt.Println("server.id:", server.id, "server.view.Primary:", server.view.Primary, "view.Primary:", view.Primary)
 	if server.id == view.Primary {
-		// fmt.Println("it's read")
 		server.isPrimary = true
 	}
 	// if a new backup is detected, then give it an updated version of the DB
 	if server.view.Backup != view.Backup && view.Backup != "" {
-		fmt.Println("this is a huge deal !!!")
-		// RPC arguments
+		// RPC UPDATE arguments
 		args := &UpdateArgs{}
 		args.KVDB = server.kvDB
+		args.GetClientRequests = server.getClientRequests
+		args.PutClientRequests = server.putClientRequests
 		var reply UpdateReply
 
 		call(view.Backup, "KVServer.Update", args, &reply)
@@ -143,6 +172,8 @@ func StartKVServer(monitorServer string, id string) *KVServer {
 
 	// Add your server initializations here
 	// ==================================
+	server.getClientRequests = make(map[string]GetReply)
+	server.putClientRequests = make(map[string]PutReply)
 	server.isPrimary = false
 	server.kvDB = make(map[string]string)
 	//====================================

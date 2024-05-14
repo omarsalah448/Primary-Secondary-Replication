@@ -188,13 +188,14 @@ func TestAtMostOnce(t *testing.T) {
 		if pv != val {
 			t.Fatalf("ck.Puthash() returned %v but expected %v\n", pv, val)
 		} else {
-			fmt.Println("passed once")
+			fmt.Println("passed once", val, pv)
 		}
 		h := hash(val + v)
 		val = strconv.Itoa(int(h))
 	}
-
+	fmt.Println("beeeeeeeeeeeeeeeeeefore get")
 	v := ck.Get(k)
+	fmt.Println("afteeeeeeeeeeeeeeeeeeeeeer get")
 	if v != val {
 		t.Fatalf("ck.Get() returned %v but expected %v\n", v, val)
 	}

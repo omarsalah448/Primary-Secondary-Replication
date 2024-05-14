@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/rpc"
 	"strconv"
+	"time"
 )
 
 // import "time"
@@ -79,15 +80,15 @@ func (client *KVClient) Get(key string) string {
 	// RPC arguments
 	args := &GetArgs{}
 	args.Key = key
+	args.ClientId = strconv.FormatInt(nrand(), 10)
 	var reply GetReply
-	valueFetched := ""
-	for valueFetched == "" {
+	for reply.Err != OK {
 		view := client.view
 		ok := call(view.Primary, "KVServer.Get", args, &reply)
 		if !ok {
+			time.Sleep(sysmonitor.PingInterval)
 			client.updateView()
 		}
-		valueFetched = reply.Value
 	}
 	return reply.Value
 }
@@ -102,19 +103,17 @@ func (client *KVClient) PutAux(key string, value string, dohash bool) string {
 	args.Key = key
 	args.Value = value
 	args.DoHash = dohash
+	args.ClientId = strconv.FormatInt(nrand(), 10)
 	var reply PutReply
-	//valueFetched := false
 	for reply.Err != OK {
 		view := client.view
 		ok := call(view.Primary, "KVServer.Put", args, &reply)
 		if !ok {
+			time.Sleep(sysmonitor.PingInterval)
 			client.updateView()
 		}
-		fmt.Println("error", reply.Err)
+		fmt.Println("error", args.DoHash, reply.Err)
 	}
-	//h := hash(reply.PreviousValue + value)
-	//return strconv.Itoa(int(h))
-	//return ""
 	return reply.PreviousValue
 }
 
