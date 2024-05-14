@@ -47,25 +47,30 @@ var atomicLock = sync.Mutex{}
 func (server *KVServer) Put(args *PutArgs, reply *PutReply) error {
 	// fmt.Println("inside put")
 	// Your code here.
-	server.mutex.RLock()
-	// filter duplicate requests
-	if server.putClientRequests[args.RequestId].Err == OK {
-		if server.isPrimary && !args.FromPrimary {
-			*reply = server.putClientRequests[args.RequestId]
-		}
-		server.mutex.RUnlock()
-		return nil
-	}
-	server.mutex.RUnlock()
 	// if primary is updating the backup
 	if args.FromPrimary {
-		server.isPrimary = false
 		server.mutex.Lock()
+		// filter duplicate requests
+		if server.putClientRequests[args.RequestId].Err == OK {
+			*reply = server.putClientRequests[args.RequestId]
+			server.mutex.Unlock()
+			return nil
+		}
+		server.isPrimary = false
 		server.updatePutHash(args, reply)
 		server.mutex.Unlock()
 		// if request is sent to primary
 	} else if server.isPrimary {
 		atomicLock.Lock()
+		server.mutex.Lock()
+		// filter duplicate requests
+		if server.putClientRequests[args.RequestId].Err == OK {
+			*reply = server.putClientRequests[args.RequestId]
+			server.mutex.Unlock()
+			atomicLock.Unlock()
+			return nil
+		}
+		server.mutex.Unlock()
 		if server.view.Backup != "" {
 			// RPC PUT arguments
 			putArgs := &PutArgs{}
@@ -101,23 +106,28 @@ func (server *KVServer) Put(args *PutArgs, reply *PutReply) error {
 func (server *KVServer) Get(args *GetArgs, reply *GetReply) error {
 	// Your code here.
 	// fmt.Println("inside get")
-	// filter duplicate requests
-	// server.mutex.RLock()
-	// if server.getClientRequests[args.RequestId].Err == OK {
-	// 	if server.isPrimary && !args.FromPrimary {
-	// 		*reply = server.getClientRequests[args.RequestId]
-	// 	}
-	// 	server.mutex.RUnlock()
-	// 	return nil
-	// }
-	// server.mutex.RUnlock()
 	if args.FromPrimary {
-		server.isPrimary = false
 		server.mutex.Lock()
+		// filter duplicate requests
+		if server.getClientRequests[args.RequestId].Err == OK {
+			*reply = server.getClientRequests[args.RequestId]
+			server.mutex.Unlock()
+			return nil
+		}
+		server.isPrimary = false
 		server.updateGet(args, reply)
 		server.mutex.Unlock()
 	} else if server.isPrimary {
 		atomicLock.Lock()
+		server.mutex.Lock()
+		// filter duplicate requests
+		if server.getClientRequests[args.RequestId].Err == OK {
+			*reply = server.getClientRequests[args.RequestId]
+			server.mutex.Unlock()
+			atomicLock.Unlock()
+			return nil
+		}
+		server.mutex.Unlock()
 		if server.view.Backup != "" {
 			// RPC GET arguments
 			getArgs := &GetArgs{}
