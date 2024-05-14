@@ -301,7 +301,7 @@ func TestFailPut(t *testing.T) {
 // do a bunch of concurrent Put()s on the same key,
 // then check that primary and backup have identical values.
 // i.e. that they processed the Put()s in the same order.
-func TestConcurrentSame(t *testing.T) {
+func TestConcurrentSamee(t *testing.T) {
 	runtime.GOMAXPROCS(4)
 
 	tag := "cs"
@@ -604,7 +604,7 @@ func TestRepeatedCrash(t *testing.T) {
 	time.Sleep(time.Second)
 }
 
-func TestRepeatedCrashUnreliable(t *testing.T) {
+func TestRepeatdCrashUnreliable(t *testing.T) {
 	runtime.GOMAXPROCS(4)
 
 	tag := "rcu"

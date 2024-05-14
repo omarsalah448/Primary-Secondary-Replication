@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/rpc"
 	"strconv"
+	"sync"
 	"time"
 )
 
@@ -71,6 +72,8 @@ func (client *KVClient) updateView() {
 	client.view = view
 }
 
+var mutex = sync.Mutex{}
+
 // Fetch a key's value from the current primary via an RPC call.
 // You can get the primary from the client's view.
 // If the key was never set, "" is expected.
@@ -94,8 +97,6 @@ func (client *KVClient) Get(key string) string {
 	}
 	return reply.Value
 }
-
-// var mutex = sync.Mutex{}
 
 // This should tell the primary to update key's value via an RPC call.
 // must keep trying until it succeeds.
