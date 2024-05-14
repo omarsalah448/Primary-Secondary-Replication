@@ -39,17 +39,23 @@ type KVServer struct {
 	kvDB              map[string]string
 	getClientRequests map[string]GetReply
 	putClientRequests map[string]PutReply
+	mutex             sync.RWMutex
 }
+
+var atomicLock = sync.Mutex{}
 
 func (server *KVServer) Put(args *PutArgs, reply *PutReply) error {
 	// Your code here.
+	server.mutex.RLock()
 	// filter duplicate requests
-	if server.putClientRequests[args.ClientId].Err == OK {
-		*reply = server.putClientRequests[args.ClientId]
+	if server.putClientRequests[args.RequestId].Err == OK {
+		*reply = server.putClientRequests[args.RequestId]
 		return nil
 	}
+	server.mutex.RUnlock()
 	// if primary is updating the backup
 	if args.FromPrimary {
+		server.mutex.Lock()
 		reply.PreviousValue = server.kvDB[args.Key]
 		server.kvDB[args.Key] = args.Value
 		if args.DoHash {
@@ -57,15 +63,10 @@ func (server *KVServer) Put(args *PutArgs, reply *PutReply) error {
 			server.kvDB[args.Key] = strconv.Itoa(int(h))
 		}
 		reply.Err = OK
-		server.putClientRequests[args.ClientId] = *reply
+		server.putClientRequests[args.RequestId] = *reply
+		server.mutex.Unlock()
 		// if request is sent to primary
 	} else if server.isPrimary {
-		reply.PreviousValue = server.kvDB[args.Key]
-		server.kvDB[args.Key] = args.Value
-		if args.DoHash {
-			h := hash(reply.PreviousValue + args.Value)
-			server.kvDB[args.Key] = strconv.Itoa(int(h))
-		}
 		if server.view.Backup != "" {
 			// RPC PUT arguments
 			putArgs := &PutArgs{}
@@ -73,23 +74,36 @@ func (server *KVServer) Put(args *PutArgs, reply *PutReply) error {
 			putArgs.Value = args.Value
 			putArgs.DoHash = args.DoHash
 			putArgs.FromPrimary = true
-			putArgs.ClientId = args.ClientId
+			putArgs.RequestId = args.RequestId
 			var putReply PutReply
 			// keep going until the reply is ok
+			atomicLock.Lock()
 			for putReply.Err != OK {
 				// update the value for the backup
 				ok := call(server.view.Backup, "KVServer.Put", putArgs, &putReply)
 				// if RPC call failed, try again later
 				if !ok {
+					atomicLock.Unlock()
 					return nil
 				}
 			}
 		}
+		server.mutex.Lock()
+		reply.PreviousValue = server.kvDB[args.Key]
+		server.kvDB[args.Key] = args.Value
+		if args.DoHash {
+			h := hash(reply.PreviousValue + args.Value)
+			server.kvDB[args.Key] = strconv.Itoa(int(h))
+		}
+		server.mutex.Unlock()
 		// value replicated successfuly
 		reply.Err = OK
+		server.mutex.Lock()
 		// prevent any more requests
-		server.putClientRequests[args.ClientId] = *reply
-		fmt.Println("request succesful for", args.ClientId, reply)
+		server.putClientRequests[args.RequestId] = *reply
+		// fmt.Println("request succesful for", args.RequestId, reply)
+		server.mutex.Unlock()
+		atomicLock.Unlock()
 		// ignore the other cases
 	} else {
 		reply.Err = ErrWrongServer
@@ -101,15 +115,19 @@ func (server *KVServer) Put(args *PutArgs, reply *PutReply) error {
 func (server *KVServer) Get(args *GetArgs, reply *GetReply) error {
 	// Your code here.
 	// filter duplicate requests
-	if server.getClientRequests[args.ClientId].Err == OK {
-		*reply = server.getClientRequests[args.ClientId]
+	server.mutex.RLock()
+	if server.getClientRequests[args.RequestId].Err == OK {
+		*reply = server.getClientRequests[args.RequestId]
 		return nil
 	}
+	server.mutex.RUnlock()
 	if server.isPrimary {
+		server.mutex.Lock()
 		reply.Value = server.kvDB[args.Key]
 		reply.Err = OK
 		// prevent any more requests
-		server.getClientRequests[args.ClientId] = *reply
+		server.getClientRequests[args.RequestId] = *reply
+		server.mutex.Unlock()
 	} else {
 		reply.Err = ErrWrongServer
 	}
@@ -119,9 +137,10 @@ func (server *KVServer) Get(args *GetArgs, reply *GetReply) error {
 
 func (server *KVServer) Update(args *UpdateArgs, reply *UpdateReply) error {
 	server.kvDB = args.KVDB
+	server.mutex.RLock()
 	server.getClientRequests = args.GetClientRequests
 	server.putClientRequests = args.PutClientRequests
-	//fmt.Println(server.id, "initialized")
+	server.mutex.RUnlock()
 	reply.Err = OK
 	return nil
 }
@@ -147,8 +166,10 @@ func (server *KVServer) tick() {
 		// RPC UPDATE arguments
 		args := &UpdateArgs{}
 		args.KVDB = server.kvDB
+		server.mutex.RLock()
 		args.GetClientRequests = server.getClientRequests
 		args.PutClientRequests = server.putClientRequests
+		server.mutex.RUnlock()
 		var reply UpdateReply
 
 		call(view.Backup, "KVServer.Update", args, &reply)
@@ -176,6 +197,7 @@ func StartKVServer(monitorServer string, id string) *KVServer {
 	server.putClientRequests = make(map[string]PutReply)
 	server.isPrimary = false
 	server.kvDB = make(map[string]string)
+	server.mutex = sync.RWMutex{}
 	//====================================
 
 	rpcs := rpc.NewServer()

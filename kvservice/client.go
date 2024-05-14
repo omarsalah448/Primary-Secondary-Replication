@@ -80,7 +80,7 @@ func (client *KVClient) Get(key string) string {
 	// RPC arguments
 	args := &GetArgs{}
 	args.Key = key
-	args.ClientId = strconv.FormatInt(nrand(), 10)
+	args.RequestId = strconv.FormatInt(nrand(), 10)
 	var reply GetReply
 	for reply.Err != OK {
 		view := client.view
@@ -103,7 +103,7 @@ func (client *KVClient) PutAux(key string, value string, dohash bool) string {
 	args.Key = key
 	args.Value = value
 	args.DoHash = dohash
-	args.ClientId = strconv.FormatInt(nrand(), 10)
+	args.RequestId = strconv.FormatInt(nrand(), 10)
 	var reply PutReply
 	for reply.Err != OK {
 		view := client.view
@@ -112,7 +112,7 @@ func (client *KVClient) PutAux(key string, value string, dohash bool) string {
 			time.Sleep(sysmonitor.PingInterval)
 			client.updateView()
 		}
-		fmt.Println("error", args.DoHash, reply.Err)
+		// fmt.Println("error", args.DoHash, reply.Err)
 	}
 	return reply.PreviousValue
 }
