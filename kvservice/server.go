@@ -1,5 +1,6 @@
 package kvservice
 
+// okoko
 import (
 	"asg4/sysmonitor"
 	"fmt"
@@ -49,6 +50,7 @@ func (server *KVServer) Put(args *PutArgs, reply *PutReply) error {
 	// Your code here.
 	// if primary is updating the backup
 	if args.FromPrimary {
+		// server.isPrimary = false
 		server.mutex.Lock()
 		// filter duplicate requests
 		if server.putClientRequests[args.RequestId].Err == OK {
@@ -56,7 +58,6 @@ func (server *KVServer) Put(args *PutArgs, reply *PutReply) error {
 			server.mutex.Unlock()
 			return nil
 		}
-		server.isPrimary = false
 		server.updatePutHash(args, reply)
 		server.mutex.Unlock()
 		// if request is sent to primary
@@ -99,7 +100,6 @@ func (server *KVServer) Put(args *PutArgs, reply *PutReply) error {
 	} else {
 		reply.Err = ErrWrongServer
 	}
-
 	return nil
 }
 
@@ -107,6 +107,7 @@ func (server *KVServer) Get(args *GetArgs, reply *GetReply) error {
 	// Your code here.
 	// fmt.Println("inside get")
 	if args.FromPrimary {
+		// server.isPrimary = false
 		server.mutex.Lock()
 		// filter duplicate requests
 		if server.getClientRequests[args.RequestId].Err == OK {
@@ -114,7 +115,6 @@ func (server *KVServer) Get(args *GetArgs, reply *GetReply) error {
 			server.mutex.Unlock()
 			return nil
 		}
-		server.isPrimary = false
 		server.updateGet(args, reply)
 		server.mutex.Unlock()
 	} else if server.isPrimary {
@@ -177,6 +177,7 @@ func (server *KVServer) tick() {
 	// Your code here.
 	// handle error
 	if err != nil {
+		server.isPrimary = false
 		fmt.Println("exit with error")
 		return
 	}
@@ -199,7 +200,8 @@ func (server *KVServer) tick() {
 		for reply.Err != OK {
 			ok := call(view.Backup, "KVServer.Update", args, &reply)
 			if !ok {
-				server.tick()
+				// server.tick()
+				fmt.Println("another exit with error")
 				return
 			}
 		}
