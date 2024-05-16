@@ -170,12 +170,12 @@ func (server *KVServer) Update(args *UpdateArgs, reply *UpdateReply) error {
 
 // ping the viewserver periodically.
 func (server *KVServer) tick() {
-	server.mutex.Lock()
-	defer server.mutex.Unlock()
 	// This line will give an error initially as view and err are not used.
 	view, err := server.monitorClnt.Ping(server.view.Viewnum)
 
 	// Your code here.
+	server.mutex.Lock()
+	defer server.mutex.Unlock()
 	// handle error
 	if err != nil {
 		return
