@@ -776,191 +776,191 @@ func proxy(t *testing.T, port string, delay *int) {
 	}()
 }
 
-// func TestPartition1(t *testing.T) {
-// 	runtime.GOMAXPROCS(4)
+func TestPartition1(t *testing.T) {
+	runtime.GOMAXPROCS(4)
 
-// 	tag := "part1"
-// 	count++
-// 	vshost := port(tag+"v", count)
-// 	vs := sysmonitor.StartServer(vshost)
-// 	time.Sleep(time.Second)
-// 	vck := sysmonitor.MakeClient("", vshost)
+	tag := "part1"
+	count++
+	vshost := port(tag+"v", count)
+	vs := sysmonitor.StartServer(vshost)
+	time.Sleep(time.Second)
+	vck := sysmonitor.MakeClient("", vshost)
 
-// 	ck1 := MakeKVClient(vshost)
+	ck1 := MakeKVClient(vshost)
 
-// 	fmt.Printf("Test: Old primary does not serve Gets ...\n")
+	fmt.Printf("Test: Old primary does not serve Gets ...\n")
 
-// 	vshosta := vshost + "a"
-// 	os.Link(vshost, vshosta)
+	vshosta := vshost + "a"
+	os.Link(vshost, vshosta)
 
-// 	s1 := StartKVServer(vshosta, port(tag, 1))
-// 	delay := 0
-// 	proxy(t, port(tag, 1), &delay)
+	s1 := StartKVServer(vshosta, port(tag, 1))
+	delay := 0
+	proxy(t, port(tag, 1), &delay)
 
-// 	deadtime := sysmonitor.PingInterval * sysmonitor.DeadPings
-// 	time.Sleep(deadtime * 2)
-// 	if vck.Primary() != s1.id {
-// 		t.Fatal("primary never formed initial view")
-// 	}
+	deadtime := sysmonitor.PingInterval * sysmonitor.DeadPings
+	time.Sleep(deadtime * 2)
+	if vck.Primary() != s1.id {
+		t.Fatal("primary never formed initial view")
+	}
 
-// 	s2 := StartKVServer(vshost, port(tag, 2))
-// 	time.Sleep(deadtime * 2)
-// 	v1, _ := vck.Get()
-// 	if v1.Primary != s1.id || v1.Backup != s2.id {
-// 		t.Fatal("backup did not join view")
-// 	}
+	s2 := StartKVServer(vshost, port(tag, 2))
+	time.Sleep(deadtime * 2)
+	v1, _ := vck.Get()
+	if v1.Primary != s1.id || v1.Backup != s2.id {
+		t.Fatal("backup did not join view")
+	}
 
-// 	ck1.Put("a", "1")
-// 	check(ck1, "a", "1")
+	ck1.Put("a", "1")
+	check(ck1, "a", "1")
 
-// 	os.Remove(vshosta)
+	os.Remove(vshosta)
 
-// 	// start a client Get(), but use proxy to delay it long
-// 	// enough that it won't reach s1 until after s1 is no
-// 	// longer the primary.
-// 	delay = 4
-// 	stale_get := false
-// 	go func() {
-// 		x := ck1.Get("a")
-// 		if x == "1" {
-// 			stale_get = true
-// 		}
-// 	}()
+	// start a client Get(), but use proxy to delay it long
+	// enough that it won't reach s1 until after s1 is no
+	// longer the primary.
+	delay = 4
+	stale_get := false
+	go func() {
+		x := ck1.Get("a")
+		if x == "1" {
+			stale_get = true
+		}
+	}()
 
-// 	// now s1 cannot talk to viewserver, so view will change,
-// 	// and s1 won't immediately realize.
+	// now s1 cannot talk to viewserver, so view will change,
+	// and s1 won't immediately realize.
 
-// 	for iter := 0; iter < sysmonitor.DeadPings*3; iter++ {
-// 		if vck.Primary() == s2.id {
-// 			break
-// 		}
-// 		time.Sleep(sysmonitor.PingInterval)
-// 	}
-// 	if vck.Primary() != s2.id {
-// 		t.Fatalf("primary never changed")
-// 	}
+	for iter := 0; iter < sysmonitor.DeadPings*3; iter++ {
+		if vck.Primary() == s2.id {
+			break
+		}
+		time.Sleep(sysmonitor.PingInterval)
+	}
+	if vck.Primary() != s2.id {
+		t.Fatalf("primary never changed")
+	}
 
-// 	// wait long enough that s2 is guaranteed to have Pinged
-// 	// the sysmonitor, and thus that s2 must know about
-// 	// the new view.
-// 	time.Sleep(2 * sysmonitor.PingInterval)
+	// wait long enough that s2 is guaranteed to have Pinged
+	// the sysmonitor, and thus that s2 must know about
+	// the new view.
+	time.Sleep(2 * sysmonitor.PingInterval)
 
-// 	// change the value (on s2) so it's no longer "1".
-// 	ck2 := MakeKVClient(vshost)
-// 	ck2.Put("a", "111")
-// 	check(ck2, "a", "111")
+	// change the value (on s2) so it's no longer "1".
+	ck2 := MakeKVClient(vshost)
+	ck2.Put("a", "111")
+	check(ck2, "a", "111")
 
-// 	// wait for the background Get to s1 to be delivered.
-// 	time.Sleep(5 * time.Second)
-// 	if stale_get {
-// 		t.Fatalf("Get to old primary succeeded and produced stale value")
-// 	}
+	// wait for the background Get to s1 to be delivered.
+	time.Sleep(5 * time.Second)
+	if stale_get {
+		t.Fatalf("Get to old primary succeeded and produced stale value")
+	}
 
-// 	check(ck2, "a", "111")
+	check(ck2, "a", "111")
 
-// 	fmt.Printf("  ... Passed\n")
+	fmt.Printf("  ... Passed\n")
 
-// 	s1.Kill()
-// 	s2.Kill()
-// 	vs.Kill()
-// }
+	s1.Kill()
+	s2.Kill()
+	vs.Kill()
+}
 
-// func TestPartition2(t *testing.T) {
-// 	runtime.GOMAXPROCS(4)
+func TestPartition2(t *testing.T) {
+	runtime.GOMAXPROCS(4)
 
-// 	tag := "part2"
-// 	count++
-// 	vshost := port(tag+"v", count)
-// 	vs := sysmonitor.StartServer(vshost)
-// 	time.Sleep(time.Second)
-// 	vck := sysmonitor.MakeClient("", vshost)
+	tag := "part2"
+	count++
+	vshost := port(tag+"v", count)
+	vs := sysmonitor.StartServer(vshost)
+	time.Sleep(time.Second)
+	vck := sysmonitor.MakeClient("", vshost)
 
-// 	ck1 := MakeKVClient(vshost)
+	ck1 := MakeKVClient(vshost)
 
-// 	vshosta := vshost + "a"
-// 	os.Link(vshost, vshosta)
+	vshosta := vshost + "a"
+	os.Link(vshost, vshosta)
 
-// 	s1 := StartKVServer(vshosta, port(tag, 1))
-// 	delay := 0
-// 	proxy(t, port(tag, 1), &delay)
+	s1 := StartKVServer(vshosta, port(tag, 1))
+	delay := 0
+	proxy(t, port(tag, 1), &delay)
 
-// 	fmt.Printf("Test: Partitioned old primary does not complete Gets ...\n")
+	fmt.Printf("Test: Partitioned old primary does not complete Gets ...\n")
 
-// 	deadtime := sysmonitor.PingInterval * sysmonitor.DeadPings
-// 	time.Sleep(deadtime * 2)
-// 	if vck.Primary() != s1.id {
-// 		t.Fatal("primary never formed initial view")
-// 	}
+	deadtime := sysmonitor.PingInterval * sysmonitor.DeadPings
+	time.Sleep(deadtime * 2)
+	if vck.Primary() != s1.id {
+		t.Fatal("primary never formed initial view")
+	}
 
-// 	s2 := StartKVServer(vshost, port(tag, 2))
-// 	time.Sleep(deadtime * 2)
-// 	v1, _ := vck.Get()
-// 	if v1.Primary != s1.id || v1.Backup != s2.id {
-// 		t.Fatal("backup did not join view")
-// 	}
+	s2 := StartKVServer(vshost, port(tag, 2))
+	time.Sleep(deadtime * 2)
+	v1, _ := vck.Get()
+	if v1.Primary != s1.id || v1.Backup != s2.id {
+		t.Fatal("backup did not join view")
+	}
 
-// 	ck1.Put("a", "1")
-// 	check(ck1, "a", "1")
+	ck1.Put("a", "1")
+	check(ck1, "a", "1")
 
-// 	os.Remove(vshosta)
+	os.Remove(vshosta)
 
-// 	// start a client Get(), but use proxy to delay it long
-// 	// enough that it won't reach s1 until after s1 is no
-// 	// longer the primary.
-// 	delay = 5
-// 	stale_get := false
-// 	go func() {
-// 		x := ck1.Get("a")
-// 		if x == "1" {
-// 			stale_get = true
-// 		}
-// 	}()
+	// start a client Get(), but use proxy to delay it long
+	// enough that it won't reach s1 until after s1 is no
+	// longer the primary.
+	delay = 5
+	stale_get := false
+	go func() {
+		x := ck1.Get("a")
+		if x == "1" {
+			stale_get = true
+		}
+	}()
 
-// 	// now s1 cannot talk to viewserver, so view will change.
+	// now s1 cannot talk to viewserver, so view will change.
 
-// 	for iter := 0; iter < sysmonitor.DeadPings*3; iter++ {
-// 		if vck.Primary() == s2.id {
-// 			break
-// 		}
-// 		time.Sleep(sysmonitor.PingInterval)
-// 	}
-// 	if vck.Primary() != s2.id {
-// 		t.Fatalf("primary never changed")
-// 	}
+	for iter := 0; iter < sysmonitor.DeadPings*3; iter++ {
+		if vck.Primary() == s2.id {
+			break
+		}
+		time.Sleep(sysmonitor.PingInterval)
+	}
+	if vck.Primary() != s2.id {
+		t.Fatalf("primary never changed")
+	}
 
-// 	s3 := StartKVServer(vshost, port(tag, 3))
-// 	for iter := 0; iter < sysmonitor.DeadPings*3; iter++ {
-// 		v, _ := vck.Get()
-// 		if v.Backup == s3.id && v.Primary == s2.id {
-// 			break
-// 		}
-// 		time.Sleep(sysmonitor.PingInterval)
-// 	}
-// 	v2, _ := vck.Get()
-// 	if v2.Primary != s2.id || v2.Backup != s3.id {
-// 		t.Fatalf("new backup never joined")
-// 	}
-// 	time.Sleep(2 * time.Second)
+	s3 := StartKVServer(vshost, port(tag, 3))
+	for iter := 0; iter < sysmonitor.DeadPings*3; iter++ {
+		v, _ := vck.Get()
+		if v.Backup == s3.id && v.Primary == s2.id {
+			break
+		}
+		time.Sleep(sysmonitor.PingInterval)
+	}
+	v2, _ := vck.Get()
+	if v2.Primary != s2.id || v2.Backup != s3.id {
+		t.Fatalf("new backup never joined")
+	}
+	time.Sleep(2 * time.Second)
 
-// 	ck2 := MakeKVClient(vshost)
-// 	ck2.Put("a", "2")
-// 	check(ck2, "a", "2")
+	ck2 := MakeKVClient(vshost)
+	ck2.Put("a", "2")
+	check(ck2, "a", "2")
 
-// 	s2.Kill()
+	s2.Kill()
 
-// 	// wait for delayed get to s1 to complete.
-// 	time.Sleep(6 * time.Second)
+	// wait for delayed get to s1 to complete.
+	time.Sleep(6 * time.Second)
 
-// 	if stale_get == true {
-// 		t.Fatalf("partitioned primary replied to a Get with a stale value")
-// 	}
+	if stale_get == true {
+		t.Fatalf("partitioned primary replied to a Get with a stale value")
+	}
 
-// 	check(ck2, "a", "2")
+	check(ck2, "a", "2")
 
-// 	fmt.Printf("  ... Passed\n")
+	fmt.Printf("  ... Passed\n")
 
-// 	s1.Kill()
-// 	s2.Kill()
-// 	s3.Kill()
-// 	vs.Kill()
-// }
+	s1.Kill()
+	s2.Kill()
+	s3.Kill()
+	vs.Kill()
+}
