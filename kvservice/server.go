@@ -42,43 +42,40 @@ type KVServer struct {
 	mutex             sync.RWMutex
 }
 
-var atomicLock = sync.Mutex{}
+var globalLock = sync.Mutex{}
 
 func (server *KVServer) PutBackup(args *PutArgs, reply *PutReply) error {
-	server.mutex.Lock()
-	server.isPrimary = false
+	// server.mutex.Lock()
+	if server.isPrimary {
+		reply.isPrimary = true
+		reply.Err = ErrWrongServer
+		server.isPrimary = false
+		return nil
+	}
+	// server.isPrimary = false
 	// filter duplicate requests
 	if server.putClientRequests[args.RequestId].Err == OK {
 		*reply = server.putClientRequests[args.RequestId]
-		server.mutex.Unlock()
+		// server.mutex.Unlock()
 		return nil
 	}
 	server.updatePutHash(args, reply)
-	server.mutex.Unlock()
+	// server.mutex.Unlock()
 	return nil
 }
 
 func (server *KVServer) Put(args *PutArgs, reply *PutReply) error {
 	// fmt.Println("inside put")
+	globalLock.Lock()
+	defer globalLock.Unlock()
 	// Your code here.
 	if server.isPrimary {
-		// atomicLock.Lock()
-		server.mutex.Lock()
-		// filter duplicate requests
-		if server.putClientRequests[args.RequestId].Err == OK {
-			*reply = server.putClientRequests[args.RequestId]
-			server.mutex.Unlock()
-			// atomicLock.Unlock()
-			return nil
-		}
-		server.mutex.Unlock()
 		if server.view.Backup != "" {
 			// RPC PUT arguments
 			putArgs := &PutArgs{}
 			putArgs.Key = args.Key
 			putArgs.Value = args.Value
 			putArgs.DoHash = args.DoHash
-			putArgs.FromPrimary = true
 			putArgs.RequestId = args.RequestId
 			var putReply PutReply
 			// keep going until the reply is ok
@@ -90,52 +87,61 @@ func (server *KVServer) Put(args *PutArgs, reply *PutReply) error {
 					// atomicLock.Unlock()
 					return nil
 				}
+				if putReply.isPrimary {
+					server.isPrimary = false
+					reply.Err = ErrWrongServer
+					return nil
+				}
 			}
 		}
-		server.mutex.Lock()
+		// server.mutex.Lock()
+		// filter duplicate requests
+		if server.putClientRequests[args.RequestId].Err == OK {
+			*reply = server.putClientRequests[args.RequestId]
+			// server.mutex.Unlock()
+			return nil
+		}
+		// server.mutex.Unlock()
+		// server.mutex.Lock()
 		server.updatePutHash(args, reply)
-		server.mutex.Unlock()
-		// atomicLock.Unlock()
+		// server.mutex.Unlock()
 		// ignore the other cases
 	} else {
-		fmt.Println("worng server !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!1")
+		// fmt.Println("worng server !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!1")
 		reply.Err = ErrWrongServer
 	}
 	return nil
 }
 
 func (server *KVServer) GetBackup(args *GetArgs, reply *GetReply) error {
-	server.isPrimary = false
-	server.mutex.Lock()
+	// server.mutex.Lock()
+	if server.isPrimary {
+		reply.isPrimary = true
+		reply.Err = ErrWrongServer
+		server.isPrimary = false
+		return nil
+	}
+	// server.isPrimary = false
 	// filter duplicate requests
 	if server.getClientRequests[args.RequestId].Err == OK {
 		*reply = server.getClientRequests[args.RequestId]
-		server.mutex.Unlock()
+		// server.mutex.Unlock()
 		return nil
 	}
 	server.updateGet(args, reply)
-	server.mutex.Unlock()
+	// server.mutex.Unlock()
 	return nil
 }
 
 func (server *KVServer) Get(args *GetArgs, reply *GetReply) error {
 	// Your code here.
+	globalLock.Lock()
+	defer globalLock.Unlock()
 	if server.isPrimary {
-		// atomicLock.Lock()
-		server.mutex.Lock()
-		// filter duplicate requests
-		if server.getClientRequests[args.RequestId].Err == OK {
-			*reply = server.getClientRequests[args.RequestId]
-			server.mutex.Unlock()
-			// atomicLock.Unlock()
-			return nil
-		}
-		server.mutex.Unlock()
 		if server.view.Backup != "" {
 			// RPC GET arguments
 			getArgs := &GetArgs{}
 			getArgs.Key = args.Key
-			getArgs.FromPrimary = true
 			getArgs.RequestId = args.RequestId
 			var getReply GetReply
 			// keep going until the reply is ok
@@ -144,44 +150,64 @@ func (server *KVServer) Get(args *GetArgs, reply *GetReply) error {
 				ok := call(server.view.Backup, "KVServer.GetBackup", getArgs, &getReply)
 				// if RPC call failed, try again later
 				if !ok {
-					// atomicLock.Unlock()
+					return nil
+				}
+				if getReply.isPrimary {
+					server.isPrimary = false
+					reply.Err = ErrWrongServer
 					return nil
 				}
 			}
 		}
-		server.mutex.Lock()
+		// server.mutex.Lock()
+		// filter duplicate requests
+		if server.getClientRequests[args.RequestId].Err == OK {
+			*reply = server.getClientRequests[args.RequestId]
+			// server.mutex.Unlock()
+			return nil
+		}
+		// server.mutex.Unlock()
+		// server.mutex.Lock()
 		server.updateGet(args, reply)
-		server.mutex.Unlock()
-		// atomicLock.Unlock()
+		// server.mutex.Unlock()
 	} else {
-		fmt.Println("worng server !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!1")
+		// fmt.Println("worng server !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!1")
 		reply.Err = ErrWrongServer
 	}
 	return nil
 }
 
 func (server *KVServer) Update(args *UpdateArgs, reply *UpdateReply) error {
-	server.mutex.Lock()
+	if server.isPrimary {
+		reply.isPrimary = true
+		reply.Err = ErrWrongServer
+		server.isPrimary = false
+		return nil
+	}
+	// server.mutex.Lock()
+	// globalLock.Lock()
+	// defer globalLock.Unlock()
 	server.kvDB = args.KVDB
 	server.isPrimary = false
 	server.getClientRequests = args.GetClientRequests
 	server.putClientRequests = args.PutClientRequests
-	server.mutex.Unlock()
+	// server.mutex.Unlock()
 	reply.Err = OK
 	return nil
 }
 
 // ping the viewserver periodically.
 func (server *KVServer) tick() {
-
+	globalLock.Lock()
+	defer globalLock.Unlock()
 	// This line will give an error initially as view and err are not used.
 	view, err := server.monitorClnt.Ping(server.view.Viewnum)
 
 	// Your code here.
 	// handle error
 	if err != nil {
-		server.isPrimary = false
-		fmt.Println("exit with error")
+		// server.isPrimary = false
+		// fmt.Println("exit with error")
 		return
 	}
 	// if primary, it can handle the client's requests
@@ -191,20 +217,28 @@ func (server *KVServer) tick() {
 		server.isPrimary = false
 	}
 	// if a new backup is detected, then give it an updated version of the DB
-	if server.isPrimary && server.view.Backup != view.Backup && view.Backup != "" {
+	// if server.isPrimary && server.view.Backup != view.Backup && view.Backup != "" {
+	if server.isPrimary && view.Backup != "" {
 		// RPC UPDATE arguments
 		args := &UpdateArgs{}
-		server.mutex.RLock()
+		// server.mutex.RLock()
 		args.KVDB = server.kvDB
 		args.GetClientRequests = server.getClientRequests
 		args.PutClientRequests = server.putClientRequests
-		server.mutex.RUnlock()
+		// server.mutex.RUnlock()
 		var reply UpdateReply
 		for reply.Err != OK {
 			ok := call(view.Backup, "KVServer.Update", args, &reply)
 			if !ok {
 				// server.tick()
-				fmt.Println("another exit with error")
+				// fmt.Println("another exit with error")
+				server.view = view
+				return
+			}
+			if reply.isPrimary {
+				server.isPrimary = false
+				reply.Err = ErrWrongServer
+				server.view = view
 				return
 			}
 		}

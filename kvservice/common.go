@@ -19,26 +19,26 @@ type PutArgs struct {
 	Value  string
 	DoHash bool // For PutHash
 	// You'll have to add definitions here.
-	RequestId   string
-	FromPrimary bool
 	// Field names should start with capital letters for RPC to work.
+	RequestId string
 }
 
 type PutReply struct {
 	Err           Err
 	PreviousValue string // For PutHash
+	isPrimary     bool
 }
 
 type GetArgs struct {
 	Key string
 	// You'll have to add definitions here.
-	RequestId   string
-	FromPrimary bool
+	RequestId string
 }
 
 type GetReply struct {
-	Err   Err
-	Value string
+	Err       Err
+	Value     string
+	isPrimary bool
 }
 
 // Add your RPC definitions here.
@@ -51,7 +51,8 @@ type UpdateArgs struct {
 }
 
 type UpdateReply struct {
-	Err Err
+	Err       Err
+	isPrimary bool
 }
 
 // ======================================

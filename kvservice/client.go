@@ -2,7 +2,6 @@ package kvservice
 
 import (
 	"asg4/sysmonitor"
-	"fmt"
 	"net/rpc"
 	"strconv"
 	"sync"
@@ -62,7 +61,7 @@ func call(srv string, rpcname string,
 		return true
 	}
 
-	fmt.Println(err)
+	// fmt.Println(err)
 	return false
 }
 
