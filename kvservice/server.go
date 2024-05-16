@@ -1,7 +1,6 @@
 package kvservice
 
 import (
-	"asg4/sysmonitor"
 	"fmt"
 	"log"
 	"math/rand"
@@ -11,6 +10,7 @@ import (
 	"strconv"
 	"sync"
 	"syscall"
+	"sysmonitor"
 	"time"
 )
 
@@ -63,7 +63,8 @@ func (server *KVServer) Put(args *PutArgs, reply *PutReply) error {
 	server.mutex.Lock()
 	defer server.mutex.Unlock()
 	if server.isPrimary {
-		if server.view.Backup != "" {
+		backup := server.view.Backup
+		if backup != "" {
 			// RPC PUT arguments
 			putArgs := &PutArgs{}
 			putArgs.Key = args.Key
@@ -74,10 +75,9 @@ func (server *KVServer) Put(args *PutArgs, reply *PutReply) error {
 			// keep going until the reply is ok
 			for putReply.Err != OK {
 				// update the value for the backup
-				ok := call(server.view.Backup, "KVServer.PutBackup", putArgs, &putReply)
+				ok := call(backup, "KVServer.PutBackup", putArgs, &putReply)
 				// if RPC call failed, try again later
 				if !ok {
-					// atomicLock.Unlock()
 					return nil
 				}
 				if putReply.Err == ErrWrongServer {
@@ -121,7 +121,8 @@ func (server *KVServer) Get(args *GetArgs, reply *GetReply) error {
 	server.mutex.Lock()
 	defer server.mutex.Unlock()
 	if server.isPrimary {
-		if server.view.Backup != "" {
+		backup := server.view.Backup
+		if backup != "" {
 			// RPC GET arguments
 			getArgs := &GetArgs{}
 			getArgs.Key = args.Key
@@ -130,7 +131,7 @@ func (server *KVServer) Get(args *GetArgs, reply *GetReply) error {
 			// keep going until the reply is ok
 			for getReply.Err != OK {
 				// update the value for the backup
-				ok := call(server.view.Backup, "KVServer.GetBackup", getArgs, &getReply)
+				ok := call(backup, "KVServer.GetBackup", getArgs, &getReply)
 				// if RPC call failed, try again later
 				if !ok {
 					return nil
@@ -170,12 +171,12 @@ func (server *KVServer) Update(args *UpdateArgs, reply *UpdateReply) error {
 
 // ping the viewserver periodically.
 func (server *KVServer) tick() {
+	server.mutex.Lock()
+	defer server.mutex.Unlock()
 	// This line will give an error initially as view and err are not used.
 	view, err := server.monitorClnt.Ping(server.view.Viewnum)
 
 	// Your code here.
-	server.mutex.Lock()
-	defer server.mutex.Unlock()
 	// handle error
 	if err != nil {
 		return
@@ -189,13 +190,14 @@ func (server *KVServer) tick() {
 	// if a new backup is detected, then give it an updated version of the DB
 	// if server.isPrimary && server.view.Backup != view.Backup && view.Backup != "" {
 	if server.isPrimary && view.Backup != "" {
-		// RPC UPDATE arguments
-		args := &UpdateArgs{}
-		args.KVDB = server.kvDB
-		args.GetClientRequests = server.getClientRequests
-		args.PutClientRequests = server.putClientRequests
 		var reply UpdateReply
 		for reply.Err != OK {
+			// RPC UPDATE arguments
+			args := &UpdateArgs{}
+			args.KVDB = server.kvDB
+			args.GetClientRequests = server.getClientRequests
+			args.PutClientRequests = server.putClientRequests
+
 			ok := call(view.Backup, "KVServer.Update", args, &reply)
 			if !ok {
 				server.view = view
