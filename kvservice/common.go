@@ -26,7 +26,6 @@ type PutArgs struct {
 type PutReply struct {
 	Err           Err
 	PreviousValue string // For PutHash
-	isPrimary     bool
 }
 
 type GetArgs struct {
@@ -36,9 +35,8 @@ type GetArgs struct {
 }
 
 type GetReply struct {
-	Err       Err
-	Value     string
-	isPrimary bool
+	Err   Err
+	Value string
 }
 
 // Add your RPC definitions here.
@@ -51,8 +49,7 @@ type UpdateArgs struct {
 }
 
 type UpdateReply struct {
-	Err       Err
-	isPrimary bool
+	Err Err
 }
 
 // ======================================
