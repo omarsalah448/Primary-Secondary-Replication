@@ -3,7 +3,6 @@ package kvservice
 import (
 	"net/rpc"
 	"strconv"
-	"sync"
 	"sysmonitor"
 	"time"
 )
@@ -71,16 +70,12 @@ func (client *KVClient) updateView() {
 	client.view = view
 }
 
-var mutex = sync.Mutex{}
-
 // Fetch a key's value from the current primary via an RPC call.
 // You can get the primary from the client's view.
 // If the key was never set, "" is expected.
 // This must keep trying until it gets a response.
 func (client *KVClient) Get(key string) string {
 	// Your code here.
-	// mutex.Lock()
-	// defer mutex.Unlock()
 	// RPC arguments
 	args := &GetArgs{}
 	args.Key = key
@@ -104,8 +99,6 @@ func (client *KVClient) Get(key string) string {
 // You can get the primary from the client's current view.
 func (client *KVClient) PutAux(key string, value string, dohash bool) string {
 	// Your code here.
-	// mutex.Lock()
-	// defer mutex.Unlock()
 	// RPC arguments
 	args := &PutArgs{}
 	args.Key = key
@@ -122,7 +115,6 @@ func (client *KVClient) PutAux(key string, value string, dohash bool) string {
 			time.Sleep(sysmonitor.PingInterval)
 			client.updateView()
 		}
-		// fmt.Println("error", args.DoHash, reply.Err)
 	}
 	return reply.PreviousValue
 }

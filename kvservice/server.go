@@ -48,7 +48,6 @@ func (server *KVServer) PutBackup(args *PutArgs, reply *PutReply) error {
 		server.isPrimary = false
 		return nil
 	}
-	server.isPrimary = false
 	// filter duplicate requests
 	if server.putClientRequests[args.RequestId].Err == OK {
 		*reply = server.putClientRequests[args.RequestId]
@@ -72,19 +71,16 @@ func (server *KVServer) Put(args *PutArgs, reply *PutReply) error {
 			putArgs.DoHash = args.DoHash
 			putArgs.RequestId = args.RequestId
 			var putReply PutReply
-			// keep going until the reply is ok
-			for putReply.Err != OK {
-				// update the value for the backup
-				ok := call(backup, "KVServer.PutBackup", putArgs, &putReply)
-				// if RPC call failed, try again later
-				if !ok {
-					return nil
-				}
-				if putReply.Err == ErrWrongServer {
-					server.isPrimary = false
-					reply.Err = ErrWrongServer
-					return nil
-				}
+			// update the value for the backup
+			ok := call(backup, "KVServer.PutBackup", putArgs, &putReply)
+			// if RPC call failed, try again later
+			if putReply.Err == ErrWrongServer {
+				server.isPrimary = false
+				reply.Err = ErrWrongServer
+				return nil
+			}
+			if !ok || putReply.Err != OK {
+				return nil
 			}
 		}
 		// filter duplicate requests
@@ -106,7 +102,6 @@ func (server *KVServer) GetBackup(args *GetArgs, reply *GetReply) error {
 		server.isPrimary = false
 		return nil
 	}
-	server.isPrimary = false
 	// filter duplicate requests
 	if server.getClientRequests[args.RequestId].Err == OK {
 		*reply = server.getClientRequests[args.RequestId]
@@ -128,19 +123,16 @@ func (server *KVServer) Get(args *GetArgs, reply *GetReply) error {
 			getArgs.Key = args.Key
 			getArgs.RequestId = args.RequestId
 			var getReply GetReply
-			// keep going until the reply is ok
-			for getReply.Err != OK {
-				// update the value for the backup
-				ok := call(backup, "KVServer.GetBackup", getArgs, &getReply)
-				// if RPC call failed, try again later
-				if !ok {
-					return nil
-				}
-				if getReply.Err == ErrWrongServer {
-					server.isPrimary = false
-					reply.Err = ErrWrongServer
-					return nil
-				}
+			// update the value for the backup
+			ok := call(backup, "KVServer.GetBackup", getArgs, &getReply)
+			// if RPC call failed, try again later
+			if getReply.Err == ErrWrongServer {
+				server.isPrimary = false
+				reply.Err = ErrWrongServer
+				return nil
+			}
+			if !ok || getReply.Err != OK {
+				return nil
 			}
 		}
 		// filter duplicate requests
@@ -156,11 +148,6 @@ func (server *KVServer) Get(args *GetArgs, reply *GetReply) error {
 }
 
 func (server *KVServer) Update(args *UpdateArgs, reply *UpdateReply) error {
-	if server.isPrimary {
-		reply.Err = ErrWrongServer
-		server.isPrimary = false
-		return nil
-	}
 	server.kvDB = args.KVDB
 	server.isPrimary = false
 	server.getClientRequests = args.GetClientRequests
@@ -191,23 +178,16 @@ func (server *KVServer) tick() {
 	// if server.isPrimary && server.view.Backup != view.Backup && view.Backup != "" {
 	if server.isPrimary && view.Backup != "" {
 		var reply UpdateReply
-		for reply.Err != OK {
-			// RPC UPDATE arguments
-			args := &UpdateArgs{}
-			args.KVDB = server.kvDB
-			args.GetClientRequests = server.getClientRequests
-			args.PutClientRequests = server.putClientRequests
+		// RPC UPDATE arguments
+		args := &UpdateArgs{}
+		args.KVDB = server.kvDB
+		args.GetClientRequests = server.getClientRequests
+		args.PutClientRequests = server.putClientRequests
 
-			ok := call(view.Backup, "KVServer.Update", args, &reply)
-			if !ok {
-				server.view = view
-				return
-			}
-			if reply.Err == ErrWrongServer {
-				server.isPrimary = false
-				server.view = view
-				return
-			}
+		ok := call(view.Backup, "KVServer.Update", args, &reply)
+		if !ok || reply.Err != OK {
+			server.view = view
+			return
 		}
 	}
 	server.view = view
